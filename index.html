@@ -16,7 +16,7 @@
         .square.revealed { background: #4CAF50; }
         .reward-points { font-size: 1.4rem; margin-bottom: 2px; }
         .reward-desc { font-size: 0.7rem; line-height: 1.1; font-weight: normal; }
-        .leaderboard-container { width: 80%; height: 50%; position: relative; margin: 15px 0; }
+        .leaderboard-container { width: 80%; height: 40%; position: relative; margin: 15px 0; min-height: 250px; }
         button { padding: 15px 35px; font-size: 1.2rem; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; margin-top: 20px; }
         button:hover { background: #0056b3; }
         button:disabled { background: #ccc; cursor: not-allowed; }
@@ -41,8 +41,9 @@
 </div>
 
 <div id="screen3" class="screen">
-    <div id="instructionText" style="max-width: 700px; margin-bottom: 20px;"></div>
+    <div id="instructionText" style="max-width: 700px; margin-bottom: 10px; font-size: 1.2rem;"></div>
     <div id="cond2Leaderboard" class="leaderboard-container" style="display:none;">
+        <h3 style="margin: 5px 0;">Current Leaderboard</h3>
         <canvas id="preGameChart"></canvas>
     </div>
     <button id="startRoundBtn" onclick="nextScreen()">Continue</button>
@@ -103,7 +104,8 @@
         historicalData: [], 
         masterRewardMap: [],
         distractorCountDown: 15,
-        earnedRewards: []
+        earnedRewards: [],
+        startTime: null // Tracks when the experiment begins
     };
 
     window.onload = () => {
@@ -138,6 +140,7 @@
     function startExperiment() {
         state.participantId = document.getElementById('participantId').value.trim() || "User_" + Math.random().toString(36).substring(7);
         state.condition = Math.random() < 0.5 ? 1 : 2;
+        state.startTime = Date.now(); // Record start time
         generateMasterMap();
         nextScreen();
     }
@@ -161,6 +164,8 @@
             if (state.condition === 2) {
                 document.getElementById('cond2Leaderboard').style.display = 'block';
                 renderChart('preGameChart', false);
+            } else {
+                document.getElementById('cond2Leaderboard').style.display = 'none';
             }
         } 
         else if (s === 4) startRound(1);
@@ -184,7 +189,6 @@
             document.getElementById('leaderboardNextBtn').style.display = 'none';
             renderChart('mainChart', true);
             
-            // Final Screen Content
             document.getElementById('finalMessage').innerText = "Thank you for your participation!";
             document.getElementById('finalRewardContainer').style.display = 'flex';
             drawAvatar('avatarCanvasFinal');
@@ -202,17 +206,14 @@
 
         ctx.clearRect(0, 0, w, h);
         
-        // Hair (College student style)
         ctx.fillStyle = "#4b2c20";
         ctx.fillRect(100*scale, 40*scale, 100*scale, 60*scale);
         
-        // Head
         ctx.beginPath();
         ctx.arc(150*scale, 85*scale, 45*scale, 0, Math.PI * 2);
         ctx.fillStyle = "#e0ac69";
         ctx.fill();
 
-        // Hoodie / T-shirt
         ctx.fillStyle = "#556677";
         ctx.beginPath();
         ctx.moveTo(100*scale, 130*scale);
@@ -221,7 +222,6 @@
         ctx.lineTo(70*scale, 280*scale);
         ctx.fill();
 
-        // Backpack Strap
         ctx.strokeStyle = "#222";
         ctx.lineWidth = 10 * scale;
         ctx.beginPath();
@@ -233,7 +233,6 @@
     function displayFinalRewards() {
         const listDiv = document.getElementById('rewardList');
         const total = state.round1Score + state.round2Score;
-        // Group rewards earned (just as a summary of the types of things they "unlocked")
         const uniqueRewards = [...new Set(state.earnedRewards)];
         
         if (uniqueRewards.length === 0) {
@@ -317,13 +316,17 @@
     }
 
     function saveData() {
+        const endTime = Date.now();
+        // Calculate total time from start to final screen in seconds
+        const totalDuration = ((endTime - state.startTime) / 1000).toFixed(2);
+
         const payload = {
             Participant_ID: state.participantId,
             Condition_Number: state.condition,
             Round_1_Score: state.round1Score,
             Round_2_Score: state.round2Score,
             Total_Score: state.round1Score + state.round2Score,
-            Timestamp: new Date().toLocaleString()
+            Reaction_Time: totalDuration + " seconds" // Restored exact key
         };
 
         fetch(WEB_APP_URL, { 
@@ -331,7 +334,7 @@
             mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify(payload)
-        }).then(() => console.log("Data Submitted."));
+        }).then(() => console.log("Data Submitted. Duration:", totalDuration));
     }
 </script>
 </body>
