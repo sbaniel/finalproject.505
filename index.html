@@ -315,19 +315,28 @@
         });
     }
 
-    function saveData() {
-        const endTime = Date.now();
-        // Calculate total time from start to final screen in seconds
-        const totalDuration = ((endTime - state.startTime) / 1000).toFixed(2);
+ function saveData() {
+    const endTime = Date.now();
+    const totalDuration = ((endTime - state.startTime) / 1000).toFixed(2);
 
-        const payload = {
-            Participant_ID: state.participantId,
-            Condition_Number: state.condition,
-            Round_1_Score: state.round1Score,
-            Round_2_Score: state.round2Score,
-            Total_Score: state.round1Score + state.round2Score,
-            Reaction_Time: totalDuration + " seconds" // Restored exact key
-        };
+    // Create a form-data style payload
+    const formData = new URLSearchParams();
+    formData.append('Participant_ID', state.participantId);
+    formData.append('Condition_Number', state.condition);
+    formData.append('Round_1_Score', state.round1Score);
+    formData.append('Round_2_Score', state.round2Score);
+    formData.append('Total_Score', state.round1Score + state.round2Score);
+    formData.append('Reaction_Time', totalDuration + " seconds"); // Match this to your header
+
+    fetch(WEB_APP_URL, { 
+        method: 'POST', 
+        mode: 'no-cors', // Keeps it simple and avoids CORS errors
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString()
+    })
+    .then(() => console.log("Data Sent. Duration:", totalDuration))
+    .catch(err => console.error("Submit Error:", err));
+}
 
         fetch(WEB_APP_URL, { 
             method: 'POST', 
