@@ -10,19 +10,21 @@
         .screen { display: none; width: 100vw; height: 100vh; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px; box-sizing: border-box; overflow-y: auto; }
         .active { display: flex; }
         canvas { background: white; border: 1px solid #ccc; max-width: 90%; max-height: 70%; }
-        #avatarCanvasFinal { background: transparent; border: none; }
         .grid-container { display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(6, 1fr); gap: 5px; width: 90vh; height: 90vh; max-width: 95vw; max-height: 95vw; }
         .square { background: #888; display: flex; flex-direction: column; justify-content: center; align-items: center; font-weight: bold; cursor: pointer; color: white; border-radius: 4px; padding: 5px; box-sizing: border-box; transition: background 0.3s; }
         .square.revealed { background: #4CAF50; }
         .reward-points { font-size: 1.4rem; margin-bottom: 2px; }
         .reward-desc { font-size: 0.7rem; line-height: 1.1; font-weight: normal; }
-        .leaderboard-container { width: 80%; height: 40%; position: relative; margin: 15px 0; min-height: 250px; }
+        .leaderboard-container { width: 80%; height: 60%; position: relative; margin: 15px 0; }
         button { padding: 15px 35px; font-size: 1.2rem; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; margin-top: 20px; }
         button:hover { background: #0056b3; }
         button:disabled { background: #ccc; cursor: not-allowed; }
         input { padding: 10px; font-size: 1.1rem; width: 250px; margin-bottom: 10px; }
         #distractorInput { width: 150px; font-size: 1.3rem; margin-top: 20px; }
-        #rewardList { text-align: left; background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-top: 10px; max-width: 400px; }
+        
+        /* New styles for rewards list */
+        .rewards-list { text-align: left; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: 15px; max-width: 400px; }
+        .reward-item { border-bottom: 1px solid #eee; padding: 5px 0; font-size: 0.9rem; }
     </style>
 </head>
 <body>
@@ -41,9 +43,8 @@
 </div>
 
 <div id="screen3" class="screen">
-    <div id="instructionText" style="max-width: 700px; margin-bottom: 10px; font-size: 1.2rem;"></div>
+    <div id="instructionText" style="max-width: 700px; margin-bottom: 20px;"></div>
     <div id="cond2Leaderboard" class="leaderboard-container" style="display:none;">
-        <h3 style="margin: 5px 0;">Current Leaderboard</h3>
         <canvas id="preGameChart"></canvas>
     </div>
     <button id="startRoundBtn" onclick="nextScreen()">Continue</button>
@@ -59,13 +60,6 @@
         <canvas id="mainChart"></canvas>
     </div>
     <div id="finalMessage" style="margin-top:20px; font-weight:bold;"></div>
-    
-    <div id="finalRewardContainer" style="display:none; align-items: center; flex-direction: column;">
-        <canvas id="avatarCanvasFinal" width="150" height="150"></canvas>
-        <h3>Your Earned Rewards:</h3>
-        <div id="rewardList"></div>
-    </div>
-
     <button id="leaderboardNextBtn" onclick="nextScreen()">Continue</button>
 </div>
 
@@ -81,6 +75,16 @@
     <h1>Round Two</h1>
     <p>You will now play round two of the game. You have twenty clicks.</p>
     <button onclick="nextScreen()">Start Round 2</button>
+</div>
+
+<div id="screen-final" class="screen">
+    <h1>Thank you for your participation!</h1>
+    <canvas id="finalAvatarCanvas"></canvas>
+    <div id="finalRewardsContainer" class="rewards-list">
+        <h3>Rewards You Earned:</h3>
+        <div id="rewardsListItems"></div>
+        <p><strong>Total Points: <span id="finalTotalScore"></span></strong></p>
+    </div>
 </div>
 
 <script>
@@ -101,11 +105,10 @@
         clicksRemaining: 20,
         round1Score: 0,
         round2Score: 0,
+        earnedRewards: [], // Tracks description of every reward found
         historicalData: [], 
         masterRewardMap: [],
-        distractorCountDown: 15,
-        earnedRewards: [],
-        startTime: null // Tracks when the experiment begins
+        distractorCountDown: 15
     };
 
     window.onload = () => {
@@ -140,7 +143,6 @@
     function startExperiment() {
         state.participantId = document.getElementById('participantId').value.trim() || "User_" + Math.random().toString(36).substring(7);
         state.condition = Math.random() < 0.5 ? 1 : 2;
-        state.startTime = Date.now(); // Record start time
         generateMasterMap();
         nextScreen();
     }
@@ -164,8 +166,6 @@
             if (state.condition === 2) {
                 document.getElementById('cond2Leaderboard').style.display = 'block';
                 renderChart('preGameChart', false);
-            } else {
-                document.getElementById('cond2Leaderboard').style.display = 'none';
             }
         } 
         else if (s === 4) startRound(1);
@@ -185,70 +185,99 @@
         else if (s === 8) startRound(2);
         else if (s === 9) {
             showScreen('screen-leaderboard');
-            document.getElementById('leaderboardTitle').innerText = "Final Results";
-            document.getElementById('leaderboardNextBtn').style.display = 'none';
+            document.getElementById('leaderboardTitle').innerText = "Final Leaderboard";
             renderChart('mainChart', true);
-            
-            document.getElementById('finalMessage').innerText = "Thank you for your participation!";
-            document.getElementById('finalRewardContainer').style.display = 'flex';
-            drawAvatar('avatarCanvasFinal');
-            displayFinalRewards();
-            (); 
+            document.getElementById('finalMessage').innerText = "Round 2 complete. Click below to see your results.";
+            saveData(); 
+        }
+        else if (s === 10) {
+            showFinalScreen();
         }
     }
 
     function drawAvatar(canvasId) {
         const canvas = document.getElementById(canvasId);
         const ctx = canvas.getContext('2d');
-        const w = canvas.width = (canvasId === 'avatarCanvas' ? 300 : 150);
-        const h = canvas.height = (canvasId === 'avatarCanvas' ? 300 : 150);
-        const scale = w / 300;
+        canvas.width = 300; canvas.height = 300;
+        
+        // Backpack (behind student)
+        ctx.fillStyle = "#444";
+        ctx.fillRect(105, 140, 90, 100);
 
-        ctx.clearRect(0, 0, w, h);
-        
-        ctx.fillStyle = "#4b2c20";
-        ctx.fillRect(100*scale, 40*scale, 100*scale, 60*scale);
-        
+        // Head
+        ctx.beginPath(); ctx.arc(150, 70, 40, 0, Math.PI * 2);
+        ctx.fillStyle = "#e0ac69"; ctx.fill();
+
+        // Hoodie/Torso
+        ctx.fillStyle = "#556677"; 
         ctx.beginPath();
-        ctx.arc(150*scale, 85*scale, 45*scale, 0, Math.PI * 2);
-        ctx.fillStyle = "#e0ac69";
+        ctx.moveTo(110, 110);
+        ctx.lineTo(190, 110);
+        ctx.lineTo(210, 250);
+        ctx.lineTo(90, 250);
+        ctx.closePath();
         ctx.fill();
 
-        ctx.fillStyle = "#556677";
-        ctx.beginPath();
-        ctx.moveTo(100*scale, 130*scale);
-        ctx.lineTo(200*scale, 130*scale);
-        ctx.lineTo(230*scale, 280*scale);
-        ctx.lineTo(70*scale, 280*scale);
-        ctx.fill();
+        // Hoodie Pocket
+        ctx.strokeStyle = "#fff";
+        ctx.strokeRect(125, 180, 50, 30);
 
-        ctx.strokeStyle = "#222";
-        ctx.lineWidth = 10 * scale;
-        ctx.beginPath();
-        ctx.moveTo(110*scale, 130*scale);
-        ctx.lineTo(130*scale, 280*scale);
-        ctx.stroke();
+        // Legs (Jeans)
+        ctx.fillStyle = "#223366";
+        ctx.fillRect(110, 250, 35, 40);
+        ctx.fillRect(155, 250, 35, 40);
     }
 
-    function displayFinalRewards() {
-        const listDiv = document.getElementById('rewardList');
-        const total = state.round1Score + state.round2Score;
-        const uniqueRewards = [...new Set(state.earnedRewards)];
+    function startRound(num) {
+        state.round = num;
+        state.clicksRemaining = 20;
+        showScreen('screen-game');
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '';
+        state.masterRewardMap.forEach(val => {
+            const sq = document.createElement('div');
+            sq.className = 'square';
+            sq.onclick = () => {
+                if (state.clicksRemaining > 0 && !sq.classList.contains('revealed')) {
+                    state.clicksRemaining--;
+                    state.earnedRewards.push(REWARD_DATA[val]);
+                    if (state.round === 1) state.round1Score += val;
+                    else state.round2Score += val;
+                    sq.innerHTML = `<div class="reward-points">${val}</div><div class="reward-desc">${REWARD_DATA[val]}</div>`;
+                    sq.classList.add('revealed');
+                    setTimeout(() => { sq.innerHTML = ''; sq.classList.remove('revealed'); }, 1000);
+                    if (state.clicksRemaining === 0) setTimeout(nextScreen, 1200);
+                }
+            };
+            grid.appendChild(sq);
+        });
+    }
+
+    function showFinalScreen() {
+        showScreen('screen-final');
+        drawAvatar('finalAvatarCanvas');
         
-        if (uniqueRewards.length === 0) {
-            listDiv.innerHTML = "No rewards earned this time.";
-        } else {
-            listDiv.innerHTML = `<p><strong>Total Score: ${total}</strong></p><ul>` + 
-                uniqueRewards.map(r => `<li>${REWARD_DATA[r]}</li>`).join('') + 
-                `</ul>`;
+        const listContainer = document.getElementById('rewardsListItems');
+        listContainer.innerHTML = '';
+        
+        // Get unique rewards and count them for a cleaner list
+        const counts = {};
+        state.earnedRewards.forEach(r => counts[r] = (counts[r] || 0) + 1);
+        
+        for (const [reward, count] of Object.entries(counts)) {
+            const item = document.createElement('div');
+            item.className = 'reward-item';
+            item.innerHTML = `• ${reward} (x${count})`;
+            listContainer.appendChild(item);
         }
+        
+        document.getElementById('finalTotalScore').innerText = state.round1Score + state.round2Score;
     }
 
     function checkDistractorInput() {
         const inputObj = document.getElementById('distractorInput');
         const targetObj = document.getElementById('distractorTarget');
         const userTyped = parseInt(inputObj.value);
-
         if (userTyped === state.distractorCountDown) {
             state.distractorCountDown--;
             inputObj.value = "";
@@ -263,31 +292,6 @@
     }
 
     function showScreen(id) { document.getElementById(id).classList.add('active'); }
-
-    function startRound(num) {
-        state.round = num;
-        state.clicksRemaining = 20;
-        showScreen('screen-game');
-        const grid = document.getElementById('grid');
-        grid.innerHTML = '';
-        state.masterRewardMap.forEach(val => {
-            const sq = document.createElement('div');
-            sq.className = 'square';
-            sq.onclick = () => {
-                if (state.clicksRemaining > 0 && !sq.classList.contains('revealed')) {
-                    state.clicksRemaining--;
-                    state.earnedRewards.push(val);
-                    if (state.round === 1) state.round1Score += val;
-                    else state.round2Score += val;
-                    sq.innerHTML = `<div class="reward-points">${val}</div><div class="reward-desc">${REWARD_DATA[val]}</div>`;
-                    sq.classList.add('revealed');
-                    setTimeout(() => { sq.innerHTML = ''; sq.classList.remove('revealed'); }, 1000);
-                    if (state.clicksRemaining === 0) setTimeout(nextScreen, 1200);
-                }
-            };
-            grid.appendChild(sq);
-        });
-    }
 
     function renderChart(canvasId, showUser) {
         const canvas = document.getElementById(canvasId);
@@ -314,7 +318,7 @@
             options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
         });
     }
- }
+
     function saveData() {
         const payload = {
             Participant_ID: state.participantId,
@@ -324,13 +328,12 @@
             Total_Score: state.round1Score + state.round2Score,
             Reaction_Time: new Date().toLocaleTimeString()
         };
-
         fetch(WEB_APP_URL, { 
             method: 'POST', 
             mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify(payload)
-        }).then(() => console.log("Data Submitted. Duration:", totalDuration));
+        }).then(() => console.log("Data Submitted Successfully."));
     }
 </script>
 </body>
